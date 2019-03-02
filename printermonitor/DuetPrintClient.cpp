@@ -61,19 +61,41 @@ boolean DuetPrintClient::validate() {
 WiFiClient DuetPrintClient::getSubmitRequest(String apiGetData) {
   WiFiClient printClient;
   printClient.setTimeout(5000);
+      if (printClient.connect("tornado.local", 80)) {
+      Serial.println("connected");
+      // Make a HTTP request:
+      printClient.println("GET /rr_status?type=3 HTTP/1.1");
+      printClient.println();
+    }
+
 
   Serial.println("Getting Duet Data via GET");
   Serial.println(apiGetData);
   result = "";
   if (printClient.connect(myServer, myPort)) {  //starts client connection, checks for connection
-    printClient.println(apiGetData);
-    printClient.println("Host: " + String(myServer) + ":" + String(myPort));
-    printClient.println("X-Api-Key: " + myApiKey);
-    if (encodedAuth != "") {
-      printClient.print("Authorization: ");
-      printClient.println("Basic " + encodedAuth);
-    }
-    printClient.println("User-Agent: ArduinoWiFi/1.1");
+    printClient.print(String("GET /rr_status?type=3") + " HTTP/1.1\r\n" +
+             "Host: " + myServer + "\r\n" +
+             "Connection: close\r\n" +
+             "\r\n"
+            );
+//            while (printClient.connected() || printClient.available())
+//{
+//  if (printClient.available())
+//  {
+//    String line = printClient.readStringUntil('\n');
+//    Serial.println(line);
+//  }
+//}
+
+//  apiGetData = "GET rr_status&type=3 HTTP/1.1";
+//    printClient.println(apiGetData);
+//    printClient.println("Host: " + String(myServer) + ":" + String(myPort));
+//    printClient.println("X-Api-Key: " + myApiKey);
+//    if (encodedAuth != "") {
+//      printClient.print("Authorization: ");
+//      printClient.println("Basic " + encodedAuth);
+//    }
+//    printClient.println("User-Agent: ArduinoWiFi/1.1");
     printClient.println("Connection: close");
     if (printClient.println() == 0) {
       Serial.println("Connection to " + String(myServer) + ":" + String(myPort) + " failed.");
@@ -178,7 +200,7 @@ void DuetPrintClient::getPrinterJobResults() {
     return;
   }
   //**** get the Printer Job status
-  String apiGetData = "GET /rr_status&type=3 HTTP/1.1";
+  String apiGetData = "GET rr_status?type=3 HTTP/1.1";
   WiFiClient printClient = getSubmitRequest(apiGetData);
   if (printerData.error != "") {
     return;
@@ -194,7 +216,16 @@ void DuetPrintClient::getPrinterJobResults() {
     printerData.state = "";
     return;
   }
-  
+
+//    printerData.toolTemp = "";
+//    printerData.toolTargetTemp = "";
+//    printerData.bedTemp = "";
+//    printerData.bedTargetTemp = (const char*)root["temps"]["bed"]["current"];
+//    printerData.toolTemp = (const char*)root["temps"]["tools"]["active"];
+//  printerData.toolTargetTemp = (const char*)root2["temperature"]["tool0"]["target"];
+  printerData.bedTemp = (const char*)root["temps"]["tools"]["active"];
+//  printerData.bedTargetTemp = (const char*)root2["temperature"]["bed"]["target"];
+    
 //  printerData.averagePrintTime = (const char*)root["job"]["averagePrintTime"];
   printerData.estimatedPrintTime = (const char*)root["printDuration"];
 //  printerData.fileName = (const char*)root["job"]["file"]["name"];
@@ -202,19 +233,21 @@ void DuetPrintClient::getPrinterJobResults() {
 //  printerData.lastPrintTime = (const char*)root["job"]["lastPrintTime"];
   printerData.progressCompletion = (const char*)root["fractionPrinted"];
 //  printerData.progressFilepos = (const char*)root["progress"]["filepos"];
-//  printerData.progressPrintTime = (const char*)root["progress"]["printTime"];
+  printerData.progressPrintTime = (const char*)root["time"];
   printerData.progressPrintTimeLeft = (const char*)root["timesLeft"]["file"];
 //  printerData.filamentLength = (const char*)root["job"]["filament"]["tool0"]["length"];
-//  printerData.state = (const char*)root["state"];
-
+//  printerData.state = (const char*)root["status"];
+//  printerData.state = "Operational";
+  //CB needs proper detection
+  //{"status":"P"
+  
   if (isOperational()) {
     Serial.println("Status: " + printerData.state);
   } else {
     Serial.println("Printer Not Operational");
   }
-
   //**** get the Printer Temps and Stat
-  apiGetData = "GET /rr_status&type=1 HTTP/1.1";
+  apiGetData = "GET /rr_status&type=3 HTTP/1.1";
   printClient = getSubmitRequest(apiGetData);
   if (printerData.error != "") {
     return;
@@ -223,23 +256,25 @@ void DuetPrintClient::getPrinterJobResults() {
   DynamicJsonBuffer jsonBuffer2(bufferSize2);
 
   // Parse JSON object
-  JsonObject& root2 = jsonBuffer2.parseObject(printClient);
-  if (!root2.success()) {
-    printerData.isPrinting = false;
-    printerData.toolTemp = "";
-    printerData.toolTargetTemp = "";
-    printerData.bedTemp = "";
-    printerData.bedTargetTemp = (const char*)root["temps"]["bed"]["current"];
-    return;
-  }
+//  JsonObject& root2 = jsonBuffer2.parseObject(printClient);
+//  if (!root2.success()) {
+//    printerData.isPrinting = false;
+//    printerData.toolTemp = "";
+//    printerData.toolTargetTemp = "";
+//    printerData.bedTemp = "";
+//    printerData.bedTargetTemp = (const char*)root["temps"]["bed"]["current"];
+//    return;
+//  }
 
   String printing = (const char*)root["status"];
   if (printing == "P") {
     printerData.isPrinting = true;
   }
-  printerData.toolTemp = (const char*)root["temps"]["tools"]["active"][0];
+  printerData.toolTemp = (const char*)root["temps"]["tools"]["active"][0][0];
+//  Serial.println("toolTemp: " + printerData.toolTemp );
+//  printerData.toolTemp = "123";
 //  printerData.toolTargetTemp = (const char*)root2["temperature"]["tool0"]["target"];
-  printerData.bedTemp = (const char*)root["temps"]["tools"]["active"];
+  printerData.bedTemp = (const char*)root["temps"]["bed"]["current"];
 //  printerData.bedTargetTemp = (const char*)root2["temperature"]["bed"]["target"];
 
   if (isPrinting()) {
@@ -359,7 +394,7 @@ boolean DuetPrintClient::isPSUoff() {
 
 boolean DuetPrintClient::isOperational() {
   boolean operational = false;
-  if (printerData.state == "Operational" || isPrinting()) {
+  if (printerData.state == "P" || isPrinting()) {
     operational = true;
   }
   return operational;
