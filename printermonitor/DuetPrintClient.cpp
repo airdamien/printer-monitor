@@ -233,7 +233,7 @@ void DuetPrintClient::getPrinterJobResults() {
 //  printerData.lastPrintTime = (const char*)root["job"]["lastPrintTime"];
   printerData.progressCompletion = (const char*)root["fractionPrinted"];
 //  printerData.progressFilepos = (const char*)root["progress"]["filepos"];
-  printerData.progressPrintTime = (const char*)root["time"];
+  printerData.progressPrintTime = (const char*)root["printDuration"];
   printerData.progressPrintTimeLeft = (const char*)root["timesLeft"]["file"];
 //  printerData.filamentLength = (const char*)root["job"]["filament"]["tool0"]["length"];
 //  printerData.state = (const char*)root["status"];
